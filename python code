@@ -1,0 +1,70 @@
+from flask import Flask, request, render_template
+from flask_bcrypt import Bcrypt
+import sqlite3
+
+app = Flask(__name__)
+bcrypt = Bcrypt(app)
+
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        print(f"Username: {username}")
+        print(f"Password: {password}")
+        conn = sqlite3.connect('users.db')
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username=?", (username,))
+        db_password = c.fetchone()
+        conn.close()
+        print(f"db_password: {db_password}")
+        if db_password is not None and bcrypt.check_password_hash(db_password[0], password.encode('utf-8')):
+            return "Login successful"
+        else:
+            return "Login failed"
+    else:
+        return render_template('login.html')
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        conn = sqlite3.connect('users.db')
+        c = conn.cursor()
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)",
+                  (username, hashed_password))
+        conn.commit()
+        conn.close()
+        return "Registration successful"
+    else:
+        return render_template('register.html')
+
+
+@app.route('/browse')
+def browse():
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users")
+    users = c.fetchall()
+    conn.close()
+    print(f"users: {users}")
+    return render_template('browse.html', users=users)
+
+
+if __name__ == '__main__':
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 username TEXT NOT NULL,
+                 password TEXT NOT NULL);''')
+    # Add a new user with the username 'ali' and password 'bahadori'
+    c.execute("INSERT INTO users (username, password) VALUES (?, ?)",
+              ('ali', bcrypt.generate_password_hash('bahadori').decode('utf-8')))
+    conn.commit()
+    conn.close()
+    print("Database initialized successfully")
+    app.run(debug=True, host='0.0.0.0')
